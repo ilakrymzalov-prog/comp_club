@@ -289,39 +289,29 @@
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Firebase SDKs -->
-    <script type="module">
-        // ==================== НАСТРОЙКА FIREBASE ====================
-        const firebaseConfig = {
-  apiKey: "AIzaSyCmmGXPkjnNVUQE7aoICxQeRSBJdK0tiYU",
-  authDomain: "club-load-analytics.firebaseapp.com",
-  projectId: "club-load-analytics",
-  storageBucket: "club-load-analytics.firebasestorage.app",
-  messagingSenderId: "40376633055",
-  appId: "1:40376633055:web:67ba44f9b54c2477670b6a",
-  measurementId: "G-QTFHS8SSE6"
-};
-        // ============================================================
-        
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue, set, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        
-        // Делаем db глобальной для других скриптов
-        window.db = db;
-        window.ref = ref;
-        window.onValue = onValue;
-        window.set = set;
-        window.update = update;
-        
-        // Отмечаем, что Firebase загружен
-        window.firebaseReady = true;
-        if (document.getElementById('syncStatus')) {
-            document.getElementById('syncStatus').innerHTML = '🟢 Синхронизация активна';
-            document.getElementById('syncStatus').classList.remove('offline');
-        }
-    </script>
+   <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyCmmGXPkjnNVUQE7aoICxQeRSBJdK0tiYU",
+    authDomain: "club-load-analytics.firebaseapp.com",
+    projectId: "club-load-analytics",
+    storageBucket: "club-load-analytics.firebasestorage.app",
+    messagingSenderId: "40376633055",
+    appId: "1:40376633055:web:67ba44f9b54c2477670b6a",
+    measurementId: "G-QTFHS8SSE6"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
 </head>
 <body>
 <div class="container">
