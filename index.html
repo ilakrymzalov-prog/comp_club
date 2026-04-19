@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Анализ загрузки клуба | Синхронизация в реальном времени</title>
+    <title>Анализ загрузки клуба | Firestore синхронизация</title>
     <style>
         * {
             box-sizing: border-box;
@@ -258,8 +258,6 @@
             border-radius: 60px;
             margin-top: 16px;
         }
-        .hidden { display: none; }
-        .info-note { font-size: 0.75rem; color: #3b82f6; background: #eef4ff; padding: 4px 12px; border-radius: 30px; }
         .sync-status {
             font-size: 0.7rem;
             color: #059669;
@@ -274,81 +272,52 @@
             background: #fee2e2;
             color: #b91c1c;
         }
-        .loading-spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #e2e8f0;
-            border-top-color: #3b82f6;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Firebase SDKs -->
-   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    
+    <!-- Firebase SDKs для FIRESTORE -->
+    <script type="module">
+        // Конфигурация Firebase (ваши данные)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCmmGXPkjnNVUQE7aoICxQeRSBJdK0tiYU",
+            authDomain: "club-load-analytics.firebaseapp.com",
+            projectId: "club-load-analytics",
+            storageBucket: "club-load-analytics.firebasestorage.app",
+            messagingSenderId: "40376633055",
+            appId: "1:40376633055:web:67ba44f9b54c2477670b6a",
+            measurementId: "G-QTFHS8SSE6"
+        };
 
-  const firebaseConfig = {
-  apiKey: "AIzaSyCmmGXPkjnNVUQE7aoICxQeRSBJdK0tiYU",
-  authDomain: "club-load-analytics.firebaseapp.com",
-  databaseURL: "https://club-load-analytics-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "club-load-analytics",
-  storageBucket: "club-load-analytics.firebasestorage.app",
-  messagingSenderId: "40376633055",
-  appId: "1:40376633055:web:67ba44f9b54c2477670b6a",
-  measurementId: "G-QTFHS8SSE6"
-};
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  console.log("SCRIPT START");
-
-  const app = initializeApp(firebaseConfig);
-  console.log("APP INIT");
-
-  const db = getFirestore(app);
-  console.log("DB INIT", db);
-
-  // запись данных
-  window.writeTest = async function () {
-    try {
-      await setDoc(doc(db, "clubData", "main"), {
-        time: new Date().toISOString()
-      });
-      console.log("WRITE OK");
-    } catch (e) {
-      console.error("WRITE ERROR", e);
-    }
-  };
-
-  // realtime подписка
-  const docRef = doc(db, "clubData", "main");
-
-  onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
-      console.log("READ OK", data);
-    } else {
-      console.log("NO DATA");
-    }
-  }, (error) => {
-    console.error("LISTEN ERROR", error);
-  });
-
-</script>
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // Делаем глобально доступным
+        window.db = db;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.getDoc = getDoc;
+        window.onSnapshot = onSnapshot;
+        window.firestoreReady = true;
+        
+        // Обновляем статус
+        const statusEl = document.getElementById('syncStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🟢 Firestore подключен';
+            statusEl.classList.remove('offline');
+        }
+        
+        console.log("Firestore initialized");
+    </script>
 </head>
 <body>
 <div class="container">
-    <!-- Статус синхронизации -->
     <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-        <div id="syncStatus" class="sync-status">🔄 Подключение к Firebase...</div>
+        <div id="syncStatus" class="sync-status">🔄 Подключение к Firestore...</div>
     </div>
     
-    <!-- Блок авторизации -->
     <div class="auth-card" id="authCard">
         <div class="auth-row">
             <div class="auth-field">
@@ -360,22 +329,21 @@
                 <input type="password" id="passwordInput" placeholder="пароль" value="123">
             </div>
             <div>
-                <button id="loginBtn" class="btn btn-primary"> Войти</button>
+                <button id="loginBtn" class="btn btn-primary">Войти</button>
             </div>
         </div>
         <div style="margin-top: 12px; font-size:0.8rem; color:#475569;">
             Учётки: <strong>admin / 123</strong> (администратор) и <strong>user / 123</strong> (пользователь)
-            <br>📡 Все изменения администратора синхронизируются в реальном времени!
+            <br>📡 Все изменения синхронизируются через Firestore!
         </div>
     </div>
 
-    <!-- Панель статуса (после входа) -->
     <div id="statusBar" style="display: none; background: white; border-radius: 60px; padding: 12px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div><span class="user-badge" id="userRoleSpan"> Администратор</span></div>
+        <div><span class="user-badge" id="userRoleSpan">Администратор</span></div>
         <button id="logoutBtnGlobal" class="logout-btn">Выйти</button>
     </div>
 
-    <!-- Панель для администратора -->
+    <!-- Панель администратора -->
     <div id="adminPanel" style="display: none;">
         <div class="upload-card">
             <h2>👑 Администратор: загрузка данных клуба</h2>
@@ -396,18 +364,18 @@
             <div class="controls-panel">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <h3 style="margin:0;">📊 Карта загрузки (среднее игроков/час)</h3>
-                    <button id="autoThresholdBtn" class="btn-outline btn"> Авто-границы (33%/66%)</button>
+                    <button id="autoThresholdBtn" class="btn-outline btn">Авто-границы (33%/66%)</button>
                 </div>
                 <div class="slider-container" style="display: flex; flex-wrap: wrap; gap: 32px; margin-top: 20px;">
                     <div class="slider-item" style="flex:1;">
                         <label>🟢 Низкая загрузка (≤)</label>
                         <input type="range" id="lowThresholdSlider" min="0" max="10" step="0.5" value="3">
-                        <div><span class="slider-value" id="lowValueDisplay">3.0</span> чел.</div>
+                        <div><span id="lowValueDisplay">3.0</span> чел.</div>
                     </div>
                     <div class="slider-item" style="flex:1;">
                         <label>🔴 Высокая загрузка (≥)</label>
                         <input type="range" id="highThresholdSlider" min="0" max="10" step="0.5" value="8">
-                        <div><span class="slider-value" id="highValueDisplay">8.0</span> чел.</div>
+                        <div><span id="highValueDisplay">8.0</span> чел.</div>
                     </div>
                 </div>
                 <div class="zone-preview" style="margin-top: 12px; display: flex; gap: 16px;">
@@ -433,60 +401,58 @@
                 <h3>💰 Установить тарифы (цена за час, руб)</h3>
                 <div class="price-row">
                     <div class="price-item">
-                        <label style="background:#bbf0d0; padding:4px 12px; border-radius: 40px;"> Низкая зона</label>
-                        <input type="number" id="priceLow" step="5" value="150" placeholder="цена">
+                        <label style="background:#bbf0d0; padding:4px 12px; border-radius: 40px;">Низкая зона</label>
+                        <input type="number" id="priceLow" step="5" value="150">
                     </div>
                     <div class="price-item">
-                        <label style="background:#fedf89; padding:4px 12px; border-radius: 40px;"> Средняя зона</label>
-                        <input type="number" id="priceMedium" step="5" value="250" placeholder="цена">
+                        <label style="background:#fedf89; padding:4px 12px; border-radius: 40px;">Средняя зона</label>
+                        <input type="number" id="priceMedium" step="5" value="250">
                     </div>
                     <div class="price-item">
-                        <label style="background:#f9aca7; padding:4px 12px; border-radius: 40px;"> Высокая зона</label>
-                        <input type="number" id="priceHigh" step="5" value="350" placeholder="цена">
+                        <label style="background:#f9aca7; padding:4px 12px; border-radius: 40px;">Высокая зона</label>
+                        <input type="number" id="priceHigh" step="5" value="350">
                     </div>
                 </div>
-                <button id="saveTariffBtn" class="btn btn-success"> 💾 Сохранить тарифный план</button>
-                <div id="tariffSavedMsg" style="margin-top: 10px; font-size:0.8rem; color:#0f3b2c;"></div>
+                <button id="saveTariffBtn" class="btn btn-success">💾 Сохранить тарифы</button>
+                <div id="tariffSavedMsg" style="margin-top: 10px; font-size:0.8rem;"></div>
             </div>
         </div>
     </div>
 
-    <!-- Панель для обычного пользователя -->
+    <!-- Панель пользователя -->
     <div id="userPanel" style="display: none;">
         <div class="upload-card">
-            <h2>👤 Ваш тарифный план & загрузка клуба</h2>
-            <div class="sub">Актуальные данные синхронизированы с сервером. Цены для цветовых зон установлены администратором.</div>
+            <h2>👤 Тарифный план и загрузка клуба</h2>
+            <div>Актуальные данные из Firestore</div>
         </div>
 
-        <div id="userTableBlock" style="background: white; border-radius: 28px; padding: 20px; margin-bottom: 24px;">
-            <h3>📈 Почасовая загрузка (среднее число игроков)</h3>
+        <div style="background: white; border-radius: 28px; padding: 20px; margin-bottom: 24px;">
+            <h3>📈 Почасовая загрузка</h3>
             <div class="table-wrapper">
                 <table class="heat-table" id="userScheduleTable">
                     <thead id="userTableHeader"></thead>
                     <tbody id="userTableBody"></tbody>
                 </table>
             </div>
-            <div class="legend" style="margin-top: 16px;">
-                <div class="legend-item"><div class="legend-color zone-low"></div><span>Низкая загрузка</span></div>
-                <div class="legend-item"><div class="legend-color zone-medium"></div><span>Средняя загрузка</span></div>
-                <div class="legend-item"><div class="legend-color zone-high"></div><span>Высокая загрузка</span></div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color zone-low"></div><span>Низкая</span></div>
+                <div class="legend-item"><div class="legend-color zone-medium"></div><span>Средняя</span></div>
+                <div class="legend-item"><div class="legend-color zone-high"></div><span>Высокая</span></div>
             </div>
         </div>
 
-        <div id="userTariffBlock" class="tariff-card">
-            <h3>💵 Тарифный план (цена за час)</h3>
-            <div id="tariffDisplay" class="tariff-grid">
-                <div class="tariff-item" style="background:#bbf0d0;"> Низкая зона: <span id="displayLowPrice">—</span> ₽/час</div>
-                <div class="tariff-item" style="background:#fedf89;"> Средняя зона: <span id="displayMediumPrice">—</span> ₽/час</div>
-                <div class="tariff-item" style="background:#f9aca7;"> Высокая зона: <span id="displayHighPrice">—</span> ₽/час</div>
+        <div class="tariff-card">
+            <h3>💵 Тарифный план</h3>
+            <div class="tariff-grid">
+                <div class="tariff-item" style="background:#bbf0d0;">Низкая: <span id="displayLowPrice">—</span> ₽/час</div>
+                <div class="tariff-item" style="background:#fedf89;">Средняя: <span id="displayMediumPrice">—</span> ₽/час</div>
+                <div class="tariff-item" style="background:#f9aca7;">Высокая: <span id="displayHighPrice">—</span> ₽/час</div>
             </div>
-            <div class="info-note" style="margin-top: 12px; display: inline-block;"> ✅ Цены синхронизируются с сервером в реальном времени</div>
         </div>
     </div>
 </div>
 
 <script>
-    // Глобальное состояние
     let currentUser = null;
     let currentAvgMatrix = null;
     let currentDayCounter = null;
@@ -494,20 +460,16 @@
     let highThreshold = 8;
     let tariffPlan = { low: 150, medium: 250, high: 350 };
     
-    // Флаг для предотвращения циклических обновлений
-    let isSyncingFromRemote = false;
     let isUpdatingToRemote = false;
+    let unsubscribe = null;
     
-    // DOM элементы
     const authCard = document.getElementById('authCard');
     const statusBar = document.getElementById('statusBar');
     const adminPanel = document.getElementById('adminPanel');
     const userPanel = document.getElementById('userPanel');
     const loginBtn = document.getElementById('loginBtn');
     const logoutBtn = document.getElementById('logoutBtnGlobal');
-    const userRoleSpan = document.getElementById('userRoleSpan');
     
-    // Helper: обновление статуса синхронизации
     function updateSyncStatus(message, isOnline = true) {
         const statusEl = document.getElementById('syncStatus');
         if (statusEl) {
@@ -516,27 +478,20 @@
         }
     }
     
-    // Функции для работы с Firebase
-    async function syncAllDataToFirebase() {
-        if (!window.firebaseReady || !window.db) {
-            console.warn("Firebase not ready yet");
-            return;
-        }
-        if (isUpdatingToRemote) return;
+    async function syncAllDataToFirestore() {
+        if (!window.firestoreReady || !window.db || isUpdatingToRemote) return;
         isUpdatingToRemote = true;
         try {
-            const dataToSync = {
+            const docRef = window.doc(window.db, "clubData", "main");
+            await window.setDoc(docRef, {
                 matrix: currentAvgMatrix,
                 dayCounter: currentDayCounter,
                 lowThreshold: lowThreshold,
                 highThreshold: highThreshold,
                 tariff: tariffPlan,
                 lastUpdated: Date.now()
-            };
-            const dbRef = window.ref(window.db, 'clubData');
-            await window.set(dbRef, dataToSync);
+            });
             updateSyncStatus("Синхронизировано", true);
-            console.log("Data synced to Firebase");
         } catch (e) {
             console.error("Sync error:", e);
             updateSyncStatus("Ошибка синхронизации", false);
@@ -545,20 +500,18 @@
         }
     }
     
-    // Подписка на изменения из Firebase
-    function subscribeToFirebaseUpdates() {
-        if (!window.firebaseReady || !window.db) {
-            setTimeout(subscribeToFirebaseUpdates, 500);
+    function subscribeToFirestore() {
+        if (!window.firestoreReady || !window.db) {
+            setTimeout(subscribeToFirestore, 500);
             return;
         }
-        const dbRef = window.ref(window.db, 'clubData');
-        window.onValue(dbRef, (snapshot) => {
+        const docRef = window.doc(window.db, "clubData", "main");
+        if (unsubscribe) unsubscribe();
+        unsubscribe = window.onSnapshot(docRef, (docSnap) => {
             if (isUpdatingToRemote) return;
-            const data = snapshot.val();
-            if (data && !isSyncingFromRemote) {
-                isSyncingFromRemote = true;
+            if (docSnap.exists()) {
+                const data = docSnap.data();
                 let changed = false;
-                
                 if (data.matrix && data.dayCounter) {
                     currentAvgMatrix = data.matrix;
                     currentDayCounter = data.dayCounter;
@@ -578,32 +531,23 @@
                         document.getElementById('priceMedium').value = tariffPlan.medium;
                         document.getElementById('priceHigh').value = tariffPlan.high;
                     }
-                    if (currentUser === 'user') {
-                        document.getElementById('displayLowPrice').innerText = tariffPlan.low;
-                        document.getElementById('displayMediumPrice').innerText = tariffPlan.medium;
-                        document.getElementById('displayHighPrice').innerText = tariffPlan.high;
-                    }
                     changed = true;
                 }
-                
                 if (changed) {
-                    if (window.lowSlider && window.highSlider) updateAdminSliders();
+                    updateAdminSliders();
                     if (currentUser === 'admin' && currentAvgMatrix) renderAdminTable();
                     if (currentUser === 'user') {
                         if (currentAvgMatrix) renderUserTable();
                         updateUserTariffDisplay();
                     }
-                    console.log("Data updated from Firebase");
                 }
-                isSyncingFromRemote = false;
             }
         }, (error) => {
-            console.error("Firebase read error:", error);
+            console.error("Firestore error:", error);
             updateSyncStatus("Ошибка подключения", false);
         });
     }
     
-    // Вспомогательные функции
     function updateAdminSliders() {
         if (window.lowSlider) {
             lowThreshold = parseFloat(window.lowSlider.value);
@@ -627,12 +571,11 @@
         if (!currentAvgMatrix || !currentDayCounter) return;
         const headerRow = document.getElementById("tableHeader");
         const bodyContainer = document.getElementById("tableBody");
-        if (!headerRow || !bodyContainer) return;
         const DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
-        const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2,'0')}:00 - ${(i+1).toString().padStart(2,'0')}:00`);
+        const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2,'0')}:00`);
         let theadHtml = `<tr><th>Час / День</th>`;
         for (let d = 0; d < 7; d++) {
-            theadHtml += `<th class="day-header">${DAYS[d]}<br><span style="font-size:0.7rem;">(${currentDayCounter[d]} дн.)</span></th>`;
+            theadHtml += `<th>${DAYS[d]}<br><span style="font-size:0.7rem;">(${currentDayCounter[d]} дн.)</span></th>`;
         }
         theadHtml += `<\/tr>`;
         headerRow.innerHTML = theadHtml;
@@ -654,9 +597,8 @@
         if (!currentAvgMatrix || !currentDayCounter) return;
         const headerRow = document.getElementById("userTableHeader");
         const bodyContainer = document.getElementById("userTableBody");
-        if (!headerRow || !bodyContainer) return;
         const DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
-        const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2,'0')}:00 - ${(i+1).toString().padStart(2,'0')}:00`);
+        const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2,'0')}:00`);
         let theadHtml = `<tr><th>Час / День</th>`;
         for (let d = 0; d < 7; d++) {
             theadHtml += `<th>${DAYS[d]}<br><span style="font-size:0.7rem;">(${currentDayCounter[d]} дн.)</span></th>`;
@@ -678,24 +620,20 @@
     }
     
     function updateUserTariffDisplay() {
-        if (document.getElementById('displayLowPrice')) {
-            document.getElementById('displayLowPrice').innerText = tariffPlan.low;
-            document.getElementById('displayMediumPrice').innerText = tariffPlan.medium;
-            document.getElementById('displayHighPrice').innerText = tariffPlan.high;
-        }
+        document.getElementById('displayLowPrice').innerText = tariffPlan.low;
+        document.getElementById('displayMediumPrice').innerText = tariffPlan.medium;
+        document.getElementById('displayHighPrice').innerText = tariffPlan.high;
     }
     
     async function saveTariffFromAdmin() {
         tariffPlan.low = parseFloat(document.getElementById('priceLow').value) || 0;
         tariffPlan.medium = parseFloat(document.getElementById('priceMedium').value) || 0;
         tariffPlan.high = parseFloat(document.getElementById('priceHigh').value) || 0;
-        const msgDiv = document.getElementById('tariffSavedMsg');
-        msgDiv.innerText = `✅ Тарифы сохранены и синхронизированы!`;
-        setTimeout(() => { if(msgDiv) msgDiv.innerText = ''; }, 3000);
-        await syncAllDataToFirebase();
+        document.getElementById('tariffSavedMsg').innerText = '✅ Тарифы сохранены!';
+        setTimeout(() => document.getElementById('tariffSavedMsg').innerText = '', 3000);
+        await syncAllDataToFirestore();
     }
     
-    // Обработка Excel
     function computeAverageMatrix(sessions) {
         let accum = Array(7).fill().map(() => Array(24).fill(0));
         let uniqueDaysMap = Array(7).fill().map(() => new Set());
@@ -767,8 +705,7 @@
             currentAvgMatrix = avgMatrix;
             currentDayCounter = dayCounter;
             document.getElementById("fileNameDisplay").innerHTML = `📄 ${file.name} | сеансов: ${sessions.length}`;
-            let totalDays = dayCounter.reduce((a,b)=>a+b,0);
-            document.getElementById("recordsCount").innerHTML = `Учтено уникальных дней: ${totalDays}`;
+            document.getElementById("recordsCount").innerHTML = `Учтено дней: ${dayCounter.reduce((a,b)=>a+b,0)}`;
             document.getElementById("infoBar").style.display = "flex";
             document.getElementById("resultPanel").style.display = "block";
             document.getElementById("errorMsg").style.display = "none";
@@ -776,40 +713,34 @@
             if(window.highSlider) window.highSlider.value = 8;
             updateAdminSliders();
             renderAdminTable();
-            await syncAllDataToFirebase();
+            await syncAllDataToFirestore();
         } catch(e) {
             document.getElementById("errorMsg").innerText = `⚠️ ${e.message}`;
             document.getElementById("errorMsg").style.display = "block";
         }
     }
     
-    // Авторизация
     function setAuth(userRole) {
         currentUser = userRole;
         if (userRole === 'admin') {
             authCard.style.display = 'none';
             statusBar.style.display = 'flex';
-            userRoleSpan.innerHTML = '👑 Администратор (управление загрузкой + тарифы)';
+            document.getElementById('userRoleSpan').innerHTML = '👑 Администратор';
             adminPanel.style.display = 'block';
             userPanel.style.display = 'none';
-            if(document.getElementById('priceLow')) {
-                document.getElementById('priceLow').value = tariffPlan.low;
-                document.getElementById('priceMedium').value = tariffPlan.medium;
-                document.getElementById('priceHigh').value = tariffPlan.high;
-            }
+            document.getElementById('priceLow').value = tariffPlan.low;
+            document.getElementById('priceMedium').value = tariffPlan.medium;
+            document.getElementById('priceHigh').value = tariffPlan.high;
             if (currentAvgMatrix) renderAdminTable();
         } else if (userRole === 'user') {
             authCard.style.display = 'none';
             statusBar.style.display = 'flex';
-            userRoleSpan.innerHTML = '👤 Пользователь (просмотр тарифов и загрузки)';
+            document.getElementById('userRoleSpan').innerHTML = '👤 Пользователь';
             adminPanel.style.display = 'none';
             userPanel.style.display = 'block';
             if (currentAvgMatrix) {
                 renderUserTable();
                 updateUserTariffDisplay();
-            } else {
-                const tbody = document.getElementById('userTableBody');
-                if(tbody) tbody.innerHTML = '<tr><td colspan="8">Нет загруженных данных. Администратор ещё не загрузил файл.</td></tr>';
             }
         }
     }
@@ -822,7 +753,6 @@
         userPanel.style.display = 'none';
     }
     
-    // Инициализация событий
     loginBtn.addEventListener('click', () => {
         const login = document.getElementById('loginInput').value.trim();
         const pwd = document.getElementById('passwordInput').value;
@@ -832,45 +762,41 @@
     });
     logoutBtn.addEventListener('click', logout);
     
-    // Привязка обработчиков
     window.addEventListener('load', () => {
-        subscribeToFirebaseUpdates();
+        subscribeToFirestore();
         
         const lowSliderEl = document.getElementById('lowThresholdSlider');
         const highSliderEl = document.getElementById('highThresholdSlider');
         if(lowSliderEl) {
             window.lowSlider = lowSliderEl;
             window.highSlider = highSliderEl;
-            lowSliderEl.addEventListener('input', () => { updateAdminSliders(); if(currentAvgMatrix) renderAdminTable(); syncAllDataToFirebase(); });
-            highSliderEl.addEventListener('input', () => { updateAdminSliders(); if(currentAvgMatrix) renderAdminTable(); syncAllDataToFirebase(); });
+            lowSliderEl.addEventListener('input', () => { updateAdminSliders(); if(currentAvgMatrix) renderAdminTable(); syncAllDataToFirestore(); });
+            highSliderEl.addEventListener('input', () => { updateAdminSliders(); if(currentAvgMatrix) renderAdminTable(); syncAllDataToFirestore(); });
         }
         
-        const autoBtn = document.getElementById('autoThresholdBtn');
-        if(autoBtn) autoBtn.addEventListener('click', () => {
+        document.getElementById('autoThresholdBtn')?.addEventListener('click', () => {
             if(!currentAvgMatrix) { alert('Сначала загрузите файл'); return; }
             let vals = [];
             for(let d=0;d<7;d++) for(let h=0;h<24;h++) if(currentDayCounter[d]>0) vals.push(currentAvgMatrix[d][h]);
             vals.sort((a,b)=>a-b);
             let p33 = vals[Math.floor(vals.length*0.33)] || 3;
             let p66 = vals[Math.floor(vals.length*0.66)] || 8;
-            if(lowSliderEl) lowSliderEl.value = p33;
-            if(highSliderEl) highSliderEl.value = p66;
+            lowSliderEl.value = p33;
+            highSliderEl.value = p66;
             updateAdminSliders();
             renderAdminTable();
-            syncAllDataToFirebase();
+            syncAllDataToFirestore();
         });
         
-        const saveBtn = document.getElementById('saveTariffBtn');
-        if(saveBtn) saveBtn.addEventListener('click', saveTariffFromAdmin);
+        document.getElementById('saveTariffBtn')?.addEventListener('click', saveTariffFromAdmin);
         
         const uploadZone = document.getElementById('uploadZone');
         const fileInputEl = document.getElementById('fileInput');
-        if(uploadZone) uploadZone.addEventListener('click', () => fileInputEl.click());
-        if(uploadZone) uploadZone.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if(f) handleFileUpload(f); });
-        if(fileInputEl) fileInputEl.addEventListener('change', (e) => { if(e.target.files[0]) handleFileUpload(e.target.files[0]); fileInputEl.value = ''; });
+        uploadZone?.addEventListener('click', () => fileInputEl.click());
+        uploadZone?.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if(f) handleFileUpload(f); });
+        fileInputEl?.addEventListener('change', (e) => { if(e.target.files[0]) handleFileUpload(e.target.files[0]); fileInputEl.value = ''; });
         
-        const resetBtn = document.getElementById('resetBtn');
-        if(resetBtn) resetBtn.addEventListener('click', () => { currentAvgMatrix = null; document.getElementById('resultPanel').style.display = 'none'; document.getElementById('infoBar').style.display = 'none'; syncAllDataToFirebase(); });
+        document.getElementById('resetBtn')?.addEventListener('click', () => { currentAvgMatrix = null; document.getElementById('resultPanel').style.display = 'none'; document.getElementById('infoBar').style.display = 'none'; syncAllDataToFirestore(); });
     });
 </script>
 </body>
