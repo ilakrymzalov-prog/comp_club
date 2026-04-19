@@ -379,11 +379,9 @@
         appId: "1:40376633055:web:67ba44f9b54c2477670b6a"
     };
 
-    // Импорт Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Инициализация
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
@@ -401,7 +399,31 @@
     let isUpdating = false;
     let unsubscribe = null;
     
-    const DOC_PATH = "clubData/main";
+    // ==================== КОНВЕРТАЦИЯ ДЛЯ FIRESTORE ====================
+    // Преобразуем матрицу 7x24 в плоскую строку для Firestore
+    function matrixToFlat(matrix) {
+        if (!matrix) return null;
+        const flat = [];
+        for (let d = 0; d < 7; d++) {
+            for (let h = 0; h < 24; h++) {
+                flat.push(matrix[d][h]);
+            }
+        }
+        return flat;
+    }
+    
+    function flatToMatrix(flat, dayCounter) {
+        if (!flat || !dayCounter) return null;
+        const matrix = Array(7).fill().map(() => Array(24).fill(0));
+        let idx = 0;
+        for (let d = 0; d < 7; d++) {
+            for (let h = 0; h < 24; h++) {
+                matrix[d][h] = flat[idx] || 0;
+                idx++;
+            }
+        }
+        return matrix;
+    }
     
     // ==================== FIRESTORE ФУНКЦИИ ====================
     async function saveToFirestore() {
@@ -412,14 +434,19 @@
         
         try {
             const docRef = doc(db, "clubData", "main");
+            
+            // Преобразуем вложенные массивы в плоские
             const dataToSave = {
-                matrix: currentAvgMatrix ? currentAvgMatrix.map(row => [...row]) : null,
+                matrixFlat: currentAvgMatrix ? matrixToFlat(currentAvgMatrix) : null,
                 dayCounter: currentDayCounter ? [...currentDayCounter] : null,
                 lowThreshold: lowThreshold,
                 highThreshold: highThreshold,
-                tariff: { ...tariffPlan },
+                tariff_low: tariffPlan.low,
+                tariff_medium: tariffPlan.medium,
+                tariff_high: tariffPlan.high,
                 updatedAt: new Date().toISOString()
             };
+            
             await setDoc(docRef, dataToSave);
             console.log("✅ Saved to Firestore");
             statusEl.innerHTML = '✅ Синхронизировано';
@@ -438,10 +465,13 @@
         
         let changed = false;
         
-        if (data.matrix && data.dayCounter) {
-            currentAvgMatrix = data.matrix.map(row => [...row]);
-            currentDayCounter = [...data.dayCounter];
-            changed = true;
+        if (data.matrixFlat && data.dayCounter) {
+            const newMatrix = flatToMatrix(data.matrixFlat, data.dayCounter);
+            if (newMatrix) {
+                currentAvgMatrix = newMatrix;
+                currentDayCounter = [...data.dayCounter];
+                changed = true;
+            }
         }
         
         if (data.lowThreshold !== undefined && data.highThreshold !== undefined) {
@@ -454,8 +484,12 @@
             changed = true;
         }
         
-        if (data.tariff) {
-            tariffPlan = { ...data.tariff };
+        if (data.tariff_low !== undefined) {
+            tariffPlan = {
+                low: data.tariff_low,
+                medium: data.tariff_medium,
+                high: data.tariff_high
+            };
             const priceLow = document.getElementById('priceLow');
             const priceMedium = document.getElementById('priceMedium');
             const priceHigh = document.getElementById('priceHigh');
@@ -517,7 +551,6 @@
     
     function renderAdminTable() {
         if (!currentAvgMatrix || !currentDayCounter) return;
-        const days = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
         const shortDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
         const header = document.getElementById("tableHeader");
         const body = document.getElementById("tableBody");
@@ -574,7 +607,6 @@
     
     // ==================== ОБРАБОТКА EXCEL ====================
     function computeAverageMatrix(sessions) {
-        // accum[день][час] = сумма часов
         let accum = Array(7).fill().map(() => Array(24).fill(0));
         let uniqueDaysMap = Array(7).fill().map(() => new Set());
         
@@ -630,7 +662,6 @@
         
         if (!data.length) throw new Error("Excel файл пуст");
         
-        // Ищем колонки с StartTime и EndTime
         let startKey = null, endKey = null;
         for (let key in data[0]) {
             let lowerKey = key.toLowerCase();
@@ -679,15 +710,12 @@
             currentAvgMatrix = avgMatrix;
             currentDayCounter = dayCounter;
             
-            // Обновляем UI
-            document.getElementById("fileNameDisplay").innerHTML = `📄 ${file.name} | сессий: ${sessions.length} | дней: ${dayCounter.reduce((a,b)=>a+b,0)}`;
+            const totalDays = dayCounter.reduce((a,b) => a + b, 0);
+            document.getElementById("fileNameDisplay").innerHTML = `📄 ${file.name} | сессий: ${sessions.length} | дней: ${totalDays}`;
             document.getElementById("infoBar").style.display = "flex";
             document.getElementById("resultPanel").style.display = "block";
             
-            // Рендерим таблицу
             renderAdminTable();
-            
-            // Сохраняем в Firestore
             await saveToFirestore();
             
             successDiv.innerHTML = `✅ Файл "${file.name}" успешно загружен! Обработано ${sessions.length} сессий.`;
@@ -743,7 +771,6 @@
     
     document.getElementById('logoutBtnGlobal').onclick = logout;
     
-    // Слайдеры
     const lowSlider = document.getElementById('lowThresholdSlider');
     const highSlider = document.getElementById('highThresholdSlider');
     
@@ -761,7 +788,6 @@
         saveToFirestore();
     };
     
-    // Авто-границы
     document.getElementById('autoThresholdBtn').onclick = () => {
         if (!currentAvgMatrix) {
             alert("Сначала загрузите Excel файл");
@@ -789,7 +815,6 @@
         saveToFirestore();
     };
     
-    // Сохранение тарифов
     document.getElementById('saveTariffBtn').onclick = async () => {
         tariffPlan = {
             low: parseFloat(document.getElementById('priceLow').value) || 0,
@@ -809,7 +834,6 @@
         if (currentUser === 'user') updateUserTariff();
     };
     
-    // Загрузка файла
     const uploadZone = document.getElementById('uploadZone');
     const fileInput = document.getElementById('fileInput');
     
@@ -826,7 +850,6 @@
         fileInput.value = '';
     };
     
-    // Сброс
     document.getElementById('resetBtn').onclick = () => {
         currentAvgMatrix = null;
         currentDayCounter = null;
@@ -837,8 +860,6 @@
     
     // ==================== ЗАПУСК ====================
     subscribeToFirestore();
-    
-    // Пробуем загрузить сохраненные данные при старте
     console.log("App started, waiting for Firestore data...");
 </script>
 </body>
