@@ -400,29 +400,20 @@
     let unsubscribe = null;
     
     // ==================== КОНВЕРТАЦИЯ ДЛЯ FIRESTORE ====================
-    // Преобразуем матрицу 7x24 в плоскую строку для Firestore
-    function matrixToFlat(matrix) {
+    // Превращаем матрицу в строку JSON (Firestore любит строки)
+    function matrixToString(matrix) {
         if (!matrix) return null;
-        const flat = [];
-        for (let d = 0; d < 7; d++) {
-            for (let h = 0; h < 24; h++) {
-                flat.push(matrix[d][h]);
-            }
-        }
-        return flat;
+        return JSON.stringify(matrix);
     }
     
-    function flatToMatrix(flat, dayCounter) {
-        if (!flat || !dayCounter) return null;
-        const matrix = Array(7).fill().map(() => Array(24).fill(0));
-        let idx = 0;
-        for (let d = 0; d < 7; d++) {
-            for (let h = 0; h < 24; h++) {
-                matrix[d][h] = flat[idx] || 0;
-                idx++;
-            }
+    function stringToMatrix(str) {
+        if (!str) return null;
+        try {
+            return JSON.parse(str);
+        } catch(e) {
+            console.error("Parse error:", e);
+            return null;
         }
-        return matrix;
     }
     
     // ==================== FIRESTORE ФУНКЦИИ ====================
@@ -435,10 +426,10 @@
         try {
             const docRef = doc(db, "clubData", "main");
             
-            // Преобразуем вложенные массивы в плоские
+            // ВСЕ ДАННЫЕ КАК ПРОСТЫЕ ПОЛЯ (никаких массивов)
             const dataToSave = {
-                matrixFlat: currentAvgMatrix ? matrixToFlat(currentAvgMatrix) : null,
-                dayCounter: currentDayCounter ? [...currentDayCounter] : null,
+                matrixJson: currentAvgMatrix ? matrixToString(currentAvgMatrix) : null,
+                dayCounterJson: currentDayCounter ? JSON.stringify(currentDayCounter) : null,
                 lowThreshold: lowThreshold,
                 highThreshold: highThreshold,
                 tariff_low: tariffPlan.low,
@@ -465,11 +456,12 @@
         
         let changed = false;
         
-        if (data.matrixFlat && data.dayCounter) {
-            const newMatrix = flatToMatrix(data.matrixFlat, data.dayCounter);
-            if (newMatrix) {
+        if (data.matrixJson && data.dayCounterJson) {
+            const newMatrix = stringToMatrix(data.matrixJson);
+            const newDayCounter = JSON.parse(data.dayCounterJson);
+            if (newMatrix && newDayCounter) {
                 currentAvgMatrix = newMatrix;
-                currentDayCounter = [...data.dayCounter];
+                currentDayCounter = newDayCounter;
                 changed = true;
             }
         }
